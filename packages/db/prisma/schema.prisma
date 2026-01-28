@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ProjectSourceType {
+  UPLOAD
+  YOUTUBE
+}
+
+enum ProjectStatus {
+  NEW
+  PROCESSING
+  READY
+  FAILED
+}
+
+model User {
+  id        String    @id @default(cuid())
+  email     String    @unique
+  name      String?
+  createdAt DateTime  @default(now())
+
+  accounts  Account[]
+  sessions  Session[]
+  projects  Project[]
+  workspaces Workspace[] @relation("WorkspaceOwner")
+  affiliate Affiliate?
+}
+
+model Workspace {
+  id        String   @id @default(cuid())
+  ownerId   String
+  name      String
+  createdAt DateTime @default(now())
+
+  owner     User     @relation("WorkspaceOwner", fields: [ownerId], references: [id])
+  projects  Project[]
+}
+
+model Project {
+  id                String            @id @default(cuid())
+  workspaceId       String
+  userId            String
+  title             String
+  sourceType        ProjectSourceType
+  sourceUrl         String?
+  originalObjectKey String?
+  durationSec       Int?
+  status            ProjectStatus     @default(NEW)
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  workspace         Workspace         @relation(fields: [workspaceId], references: [id])
+  user              User              @relation(fields: [userId], references: [id])
+}
+
+model Affiliate {
+  id             String          @id @default(cuid())
+  userId         String          @unique
+  code           String          @unique
+  commissionRate Float           @default(0.25)
+  createdAt      DateTime        @default(now())
+
+  user           User            @relation(fields: [userId], references: [id])
+  referrals      Referral[]
+  clicks         AffiliateClick[]
+}
+
+model Referral {
+  id             String     @id @default(cuid())
+  affiliateId    String
+  referredUserId String
+  createdAt      DateTime   @default(now())
+
+  affiliate      Affiliate  @relation(fields: [affiliateId], references: [id])
+}
+
+model AffiliateClick {
+  id          String    @id @default(cuid())
+  affiliateId String
+  anonId      String
+  userAgent   String?
+  ipHash      String?
+  createdAt   DateTime  @default(now())
+
+  affiliate   Affiliate @relation(fields: [affiliateId], references: [id])
+
+  @@index([affiliateId, anonId, createdAt])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
